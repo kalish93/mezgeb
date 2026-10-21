@@ -1,10 +1,10 @@
 /**
- * Typed API client for Cone Ledger backend.
- * Base URL is picked up from NEXT_PUBLIC_API_URL env var,
- * falling back to http://localhost:4000/api.
+ * Typed API client for Cone Ledger backend (Next.js built-in API routes).
+ * Uses a relative /api base so it works on any deployment without config.
+ * Override with NEXT_PUBLIC_API_URL if you ever need an absolute URL.
  */
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api'
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? '/api'
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
