@@ -1,24 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import { pool } from '@/lib/db'
+import { errorResponse } from '@/lib/http'
+import { insertSaleLines, moveSaleStock, recordInitialPayment, SaleSchema } from '@/lib/ledger'
 
 export const runtime = 'nodejs'
-
-const SaleItemSchema = z.object({
-  productId: z.string().min(1),
-  quantity: z.number().int().min(1),
-  price: z.number().min(0),
-})
-
-const SaleSchema = z.object({
-  id: z.string().optional(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  customerId: z.string().min(1),
-  items: z.array(SaleItemSchema).min(1),
-  discount: z.number().min(0).default(0),
-  paid: z.number().min(0).default(0),
-  note: z.string().default(''),
-})
 
 function statusFor(total: number, paid: number) {
   if (paid >= total) return 'paid'
@@ -34,8 +19,8 @@ export async function GET(req: NextRequest) {
     const status = searchParams.get('status')
     const from = searchParams.get('from')
     const to = searchParams.get('to')
-    const limit = parseInt(searchParams.get('limit') ?? '100')
-    const offset = parseInt(searchParams.get('offset') ?? '0')
+    const limit = Math.min(Math.max(parseInt(searchParams.get('limit') ?? '') || 100, 1), 1000)
+    const offset = Math.max(parseInt(searchParams.get('offset') ?? '') || 0, 0)
 
     const conditions: string[] = []
     const params: any[] = []
@@ -54,11 +39,13 @@ export async function GET(req: NextRequest) {
                c.name AS customer_name,
                COALESCE(SUM(si.quantity * si.price), 0) - s.discount AS total,
                COALESCE(s_paid.paid, 0) AS paid,
-               json_agg(json_build_object(
+               COALESCE(json_agg(json_build_object(
                  'productId', si.product_id,
                  'quantity', si.quantity,
-                 'price', si.price
-               ) ORDER BY si.id) AS items
+                 'price', si.price,
+               'unitCode', si.unit_code, 'unitLabel', si.unit_label,
+               'unitFactor', si.unit_factor, 'baseQuantity', si.base_quantity
+               ) ORDER BY si.id) FILTER (WHERE si.id IS NOT NULL), '[]'::json) AS items
         FROM sales s
         JOIN customers c ON c.id = s.customer_id
         LEFT JOIN sale_items si ON si.sale_id = s.id
@@ -86,8 +73,7 @@ export async function GET(req: NextRequest) {
       client.release()
     }
   } catch (err) {
-    console.error(err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return errorResponse(err)
   }
 }
 
@@ -95,8 +81,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const client = await pool.connect()
   try {
-    const body = await req.json()
-    const parsed = SaleSchema.safeParse(body)
+    const parsed = SaleSchema.safeParse(await req.json())
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
     }
@@ -104,41 +89,18 @@ export async function POST(req: NextRequest) {
     const saleId = id || `SAL-${Date.now()}`
 
     await client.query('BEGIN')
-
     await client.query(
       `INSERT INTO sales (id, date, customer_id, discount, note) VALUES ($1,$2,$3,$4,$5)`,
       [saleId, date, customerId, discount, note]
     )
-
-    for (const item of items) {
-      await client.query(
-        `INSERT INTO sale_items (sale_id, product_id, quantity, price) VALUES ($1,$2,$3,$4)`,
-        [saleId, item.productId, item.quantity, item.price]
-      )
-      await client.query(
-        `UPDATE products SET stock = GREATEST(0, stock - $1) WHERE id = $2`,
-        [item.quantity, item.productId]
-      )
-    }
-
-    if (paid > 0) {
-      const payId = `PAY-${Date.now()}`
-      await client.query(
-        `INSERT INTO payments (id, date, kind, person_id, amount, note) VALUES ($1,$2,'customer',$3,$4,'')`,
-        [payId, date, customerId, paid]
-      )
-      await client.query(
-        `INSERT INTO payment_allocations (payment_id, transaction_id, amount) VALUES ($1,$2,$3)`,
-        [payId, saleId, paid]
-      )
-    }
-
+    await insertSaleLines(client, saleId, items)
+    await moveSaleStock(client, saleId, -1)
+    await recordInitialPayment(client, 'customer', customerId, saleId, date, paid)
     await client.query('COMMIT')
     return NextResponse.json({ id: saleId }, { status: 201 })
   } catch (err) {
-    await client.query('ROLLBACK')
-    console.error(err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    await client.query('ROLLBACK').catch(() => {})
+    return errorResponse(err)
   } finally {
     client.release()
   }

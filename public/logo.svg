@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Mezgeb">
+  <!-- Mezgeb logo: a cross-wound yarn cone whose loose thread becomes a ledger line -->
+  <defs>
+    <clipPath id="cone">
+      <path d="M214 132 Q256 122 298 132 L358 372 Q256 392 154 372 Z" />
+    </clipPath>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="#21633b" />
+  <!-- tube tip -->
+  <rect x="236" y="96" width="40" height="44" rx="9" fill="#cfe8d5" />
+  <!-- wound yarn -->
+  <path d="M214 132 Q256 122 298 132 L358 372 Q256 392 154 372 Z" fill="#f4f7f4" />
+  <!-- cross-winding (the diamond pattern of a yarn cone) -->
+  <g clip-path="url(#cone)" stroke="#a9d1b3" stroke-width="7" stroke-linecap="round" fill="none">
+    <path d="M110 150 L330 400" /><path d="M150 110 L390 380" /><path d="M200 90 L420 340" /><path d="M70 200 L280 420" />
+    <path d="M400 150 L180 400" /><path d="M360 110 L120 380" /><path d="M310 90 L90 340" /><path d="M440 200 L230 420" />
+  </g>
+  <!-- base -->
+  <rect x="140" y="368" width="232" height="30" rx="13" fill="#9fcaa9" />
+  <!-- loose thread → ledger line -->
+  <path d="M324 196 C 404 212 438 300 410 368 C 396 404 378 432 340 436 L 132 436" fill="none" stroke="#f2b632" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

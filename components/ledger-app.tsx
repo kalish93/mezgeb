@@ -1,73 +1,193 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
-import { Bell, BookOpen, CircleDollarSign, CreditCard, FileBarChart, Factory, Home, Languages, Menu, Package, Plus, Search, Settings as SettingsIcon, ShoppingCart, Truck, Users, Wallet, X } from 'lucide-react'
-import { Button } from '@/components/ui/button'
-import { dateBoth, money } from '@/lib/mock-data'
+import { useCallback, useEffect, useState } from 'react'
+import {
+  BookOpen, CreditCard, Factory, FileBarChart, Home, Menu, Package, Settings as SettingsIcon,
+  ShoppingCart, Truck, Users, Wallet, X, type LucideIcon,
+} from 'lucide-react'
 import {
   getDashboard, getProducts, getCustomers, getSuppliers, getSales, getPurchases,
-  getPayments, getExpenses, getProductions, createSale, createPurchase, createPayment,
-  createCustomer, createSupplier,
-  type Product, type Customer, type Supplier, type Sale, type Purchase,
-  type Payment, type Expense, type Production, type DashboardData,
+  getPayments, getExpenses, getProductions, getItems, getPackaging,
 } from '@/lib/api'
-type Page='dashboard'|'sales'|'purchases'|'payments'|'customers'|'suppliers'|'inventory'|'production'|'expenses'|'reports'|'settings'
-const L:any={am:{dashboard:'ዋና ገጽ',sales:'ሽያጭ',purchases:'ግዢ',payments:'ክፍያዎች',customers:'ደንበኞች',suppliers:'አቅራቢዎች',inventory:'እቃ ክምችት',production:'ምርት',expenses:'ወጪዎች',reports:'ሪፖርቶች',settings:'ቅንብሮች',more:'ተጨማሪ',newSale:'አዲስ ሽያጭ',newPurchase:'አዲስ ግዢ',recordPayment:'ክፍያ መዝግብ',paid:'ተከፍሏል',partial:'ከፊል',unpaid:'ያልተከፈለ',save:'አስቀምጥ',cancel:'ሰርዝ',search:'ፈልግ'},en:{dashboard:'Dashboard',sales:'Sales',purchases:'Purchases',payments:'Payments',customers:'Customers',suppliers:'Suppliers',inventory:'Inventory',production:'Production',expenses:'Expenses',reports:'Reports',settings:'Settings',more:'More',newSale:'New sale',newPurchase:'New purchase',recordPayment:'Record payment',paid:'Paid',partial:'Partial',unpaid:'Unpaid',save:'Save',cancel:'Cancel',search:'Search'}}
-const nav:any[]=[['dashboard',Home],['sales',ShoppingCart],['purchases',Truck],['payments',CreditCard],['customers',Users],['suppliers',BookOpen],['inventory',Package],['production',Factory],['expenses',Wallet],['reports',FileBarChart],['settings',SettingsIcon]]
-export default function LedgerApp(){
-  const[lang,setLang]=useState<'am'|'en'>('am');const t=L[lang];
-  const[page,setPage]=useState<Page>('dashboard');
-  const[modal,setModal]=useState<string|null>(null);
-  const[q,setQ]=useState('');
-  const[toast,setToast]=useState('');
-  const[mobileMenu,setMobileMenu]=useState(false);
-  // ── API data ──
-  const[dash,setDash]=useState<DashboardData|null>(null);
-  const[products,setProducts]=useState<Product[]>([]);
-  const[customers,setCustomers]=useState<Customer[]>([]);
-  const[suppliers,setSuppliers]=useState<Supplier[]>([]);
-  const[sales,setSales]=useState<Sale[]>([]);
-  const[purchases,setPurchases]=useState<Purchase[]>([]);
-  const[payments,setPayments]=useState<Payment[]>([]);
-  const[expenses,setExpenses]=useState<Expense[]>([]);
-  const[productions,setProductions]=useState<Production[]>([]);
-  const[loading,setLoading]=useState(true);
-  const[apiError,setApiError]=useState('');
-  const reload=useCallback(async()=>{
-    try{
-      setApiError('');
-      const[d,pr,cu,su,sa,pu,pa,ex,prod]=await Promise.all([
-        getDashboard(),getProducts(),getCustomers(),getSuppliers(),
-        getSales(),getPurchases(),getPayments(),getExpenses(),getProductions()
-      ]);
-      setDash(d);setProducts(pr);setCustomers(cu);setSuppliers(su);
-      setSales(sa);setPurchases(pu);setPayments(pa);setExpenses(ex);setProductions(prod);
-    }catch(e:any){setApiError(e.message||'API error');}
-    finally{setLoading(false);}
-  },[]);
-  useEffect(()=>{reload();},[reload]);
-  const go=(p:Page)=>setPage(p);
-  const totals={
-    totalSales:dash?.totalSales??0,
-    customerDebt:dash?.customerDebt??0,
-    supplierDebt:dash?.supplierDebt??0,
-    stock:dash?.stockValue??0,
-  };
-  if(loading)return <div className="flex min-h-screen items-center justify-center bg-[#f4f7f4]"><div className="text-center"><div className="mb-4 text-4xl">🧵</div><p className="text-[#5e7568]">ኮን መዝገብ እየተጀመረ ነው…</p></div></div>;
-  if(apiError)return <div className="flex min-h-screen items-center justify-center bg-[#f4f7f4]"><div className="max-w-sm rounded-2xl border border-red-200 bg-white p-8 text-center"><div className="mb-3 text-4xl">⚠️</div><b className="block text-red-700">ወደ ሰርቨር ማገናኘት አልተቻለም</b><p className="mt-2 text-sm text-[#77867d]">{apiError}</p><button onClick={()=>{setLoading(true);reload();}} className="mt-4 rounded-xl bg-[#21633b] px-5 py-2 text-sm text-white">እንደገና ሞክር</button></div></div>;
-  return <div className="min-h-screen bg-[#f4f7f4] text-[#17221e] selection:bg-[#cfe8d5] selection:text-[#17472a]" style={{fontFamily:'Noto Sans Ethiopic, sans-serif'}}><aside className="fixed inset-y-0 left-0 hidden w-72 flex-col border-r border-[#dfe9e1] bg-white/95 p-5 shadow-[8px_0_30px_rgba(28,67,43,0.04)] lg:flex"><Brand/><nav className="mt-8 flex flex-1 flex-col gap-1">{nav.map(([id,I])=><button key={id} onClick={()=>go(id)} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm ${page===id?'bg-[#e5f2e8] font-bold text-[#21633b]':'text-[#718078]'}`}><I className="size-[18px]"/>{t[id]}</button>)}</nav><small className="rounded-xl bg-[#eef6f0] p-3 text-[#5e7568]">PostgreSQL • localhost:4000</small></aside><main className="pb-8 lg:pl-72"><header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-[#dfe9e1] bg-[#f4f7f4]/90 px-4 shadow-[0_1px_12px_rgba(28,67,43,0.04)] backdrop-blur-xl lg:h-20 lg:px-10"><div className="flex items-center gap-3 lg:hidden"><Brand compact/></div><span className="hidden text-sm text-[#708178] lg:block">{dateBoth(new Date().toISOString().slice(0,10))}</span><div className="flex items-center gap-2"><button onClick={()=>setLang(lang==='am'?'en':'am')} className="rounded-full border bg-white px-3 py-2 text-xs"><Languages className="mr-1 inline size-4"/>{lang==='am'?'EN':'አማ'}</button><button aria-label={t.more} onClick={()=>setMobileMenu(true)} className="rounded-xl border border-[#dfe9e1] bg-white p-2 text-[#21633b] lg:hidden"><Menu className="size-5"/></button><Bell className="size-5 text-[#718078]"/></div></header><div className="mx-auto max-w-[1440px] px-4 py-5 sm:px-6 lg:px-10 lg:py-9">{page==='dashboard'?<Dashboard t={t} go={go} totals={totals} dash={dash}/>:page==='sales'?<ListPage title={t.sales} data={sales} type="sale" t={t} q={q} setQ={setQ} onNew={()=>setModal('sale')}/>:page==='purchases'?<ListPage title={t.purchases} data={purchases} type="purchase" t={t} q={q} setQ={setQ} onNew={()=>setModal('purchase')}/>:page==='payments'?<Payments t={t} payments={payments} customers={customers} suppliers={suppliers} onNew={()=>setModal('payment')}/>:page==='customers'||page==='suppliers'?<Directory type={page==='customers'?'customer':'supplier'} t={t} customers={customers} suppliers={suppliers} sales={sales} purchases={purchases} onAdd={reload}/>:page==='inventory'?<Inventory t={t} products={products}/>:page==='production'?<Production t={t} productions={productions} products={products}/>:page==='expenses'?<Expenses t={t} expenses={expenses}/>:page==='reports'?<Reports totals={totals}/>:<Settings/>}</div></main><nav className="hidden">{[['dashboard',Home],['sales',ShoppingCart],['payments',CreditCard],['customers',Users],['more',Menu]].map(([id,I]:any)=><button key={id} onClick={()=>id==='more'?setMobileMenu(true):go(id)} className={`flex min-w-0 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-semibold ${page===id?'bg-[#e5f2e8] text-[#21633b]':'text-[#718078]'}`}><I className="pointer-events-none size-4"/><span className="truncate">{id==='more'?t.more:t[id]}</span></button>)}</nav>{mobileMenu&&<div className="fixed inset-0 z-50 bg-black/30 lg:hidden" onClick={()=>setMobileMenu(false)}><div className="absolute inset-x-3 bottom-3 rounded-3xl border border-[#dfe9e1] bg-white p-4 shadow-2xl" onClick={e=>e.stopPropagation()}><div className="mb-3 flex items-center justify-between"><b className="text-base">{t.more}</b><button aria-label={t.cancel} onClick={()=>setMobileMenu(false)} className="rounded-xl p-2 text-[#718078]"><X className="size-5"/></button></div><div className="grid grid-cols-2 gap-2">{nav.map(([id,I]:any)=><button key={id} onClick={()=>{go(id);setMobileMenu(false)}} className={`flex items-center gap-3 rounded-xl border p-3 text-left text-sm font-semibold ${page===id?'border-[#b9d9c1] bg-[#e5f2e8] text-[#21633b]':'border-[#e5ebe6] text-[#52645a]'}`}><I className="size-4"/>{t[id]}</button>)}</div></div></div>}{modal&&<Modal kind={modal} t={t} products={products} customers={customers} suppliers={suppliers} close={()=>setModal(null)} saved={async(m:string,data?:any)=>{if(data){try{if(modal==='sale')await createSale(data);else if(modal==='purchase')await createPurchase(data);else if(modal==='payment')await createPayment(data);}catch(e:any){setToast('❌ '+e.message);setTimeout(()=>setToast(''),4000);return;}}setModal(null);setToast(m);setTimeout(()=>setToast(''),3000);reload();}}/>}{toast&&<div className="fixed bottom-20 left-1/2 z-50 -translate-x-1/2 rounded-xl bg-[#173c2b] px-5 py-3 text-sm text-white">{toast}</div>}</div>}
+import { dateBoth, localDay } from '@/lib/format'
+import { dictionaries, type Lang } from './ledger/i18n'
+import {
+  Dashboard, TradeList, PaymentList, PeopleList, Inventory, ProductionList, ExpenseList, Reports, Settings,
+  type AppData, type Modal,
+} from './ledger/pages'
+import { TradeForm, PaymentForm, ExpenseForm, ItemForm, PackagingForm, PersonForm, ProductionForm } from './ledger/forms'
+import {
+  SaleDetailView, PurchaseDetailView, PaymentDetailView, ProductionDetailView, ExpenseDetailView, ItemDetailView, PersonDetailView, SummaryView,
+} from './ledger/details'
 
-function Brand({compact=false}:{compact?:boolean}){return <div className="flex items-center gap-3"><div className="flex size-10 shrink-0 items-center justify-center rounded-[14px] bg-[#21633b] text-lg font-black text-white shadow-[0_6px_14px_rgba(33,99,59,0.22)]">ኮ</div>{!compact&&<div><b className="text-[15px] tracking-tight">ኮን መዝገብ</b><div className="mt-0.5 text-[10px] font-semibold tracking-[0.18em] text-[#829189]">CONE LEDGER</div></div>}</div>}
-function Head({title,sub,action}:{title:string;sub?:string;action?:any}){return <div className="mb-6 flex flex-col gap-4 sm:mb-8 sm:flex-row sm:items-end sm:justify-between"><div className="min-w-0"><h1 className="text-[25px] font-bold tracking-[-0.03em] sm:text-3xl">{title}</h1>{sub&&<p className="mt-2 max-w-2xl text-[13px] leading-6 text-[#77867d] sm:text-sm">{sub}</p>}</div><div className="shrink-0">{action}</div></div>}
-function Card({children}:{children:any}){return <div className="overflow-hidden rounded-[20px] border border-[#dfe9e1] bg-white shadow-[0_8px_24px_rgba(28,67,43,0.045)]">{children}</div>}
-function Stat({label,value,icon:I,color='green'}:{label:string;value:string;icon:any;color?:string}){return <Card><div className="p-4 sm:p-5"><div className={`flex size-10 items-center justify-center rounded-[14px] ${color==='green'?'bg-[#e5f2e8] text-[#21633b]':color==='red'?'bg-[#fce9e8] text-[#a54542]':color==='blue'?'bg-[#e4f0f8] text-[#216182]':'bg-[#fff4dc] text-[#a66a00]'}`}><I className="size-5"/></div><div className="mt-4 text-lg font-bold">{value}</div><div className="text-sm text-[#77867d]">{label}</div></div></Card>}
-function Dashboard({t,go,totals,dash}:any){return <><Head title="ሰላም!" sub="የንግድዎን ዛሬ እንቅስቃሴ በአንድ ቦታ ይከታተሉ።" action={<Button onClick={()=>go('sales')} className="bg-[#21633b] shadow-[0_6px_14px_rgba(33,99,59,0.18)] transition-all hover:bg-[#174d2c] active:scale-[0.98]"><Plus data-icon="inline-start"/>{t.newSale}</Button>}/><div className="grid grid-cols-2 gap-3 lg:grid-cols-4"><Stat label="የሽያጭ ጠቅላላ" value={money(totals.totalSales)} icon={CircleDollarSign}/><Stat label="የደንበኛ ዕዳ" value={money(totals.customerDebt)} icon={Users} color="amber"/><Stat label="የአቅራቢ ዕዳ" value={money(totals.supplierDebt)} icon={Truck} color="red"/><Stat label="የክምችት ዋጋ" value={money(totals.stock)} icon={Package} color="blue"/></div><div className="mt-5 grid gap-4 lg:grid-cols-2"><Card><div className="p-5"><h2 className="font-bold">የቅርብ ጊዜ ሽያጮች</h2><div className="mt-4 divide-y">{(dash?.recentSales??[]).slice(0,5).map((s:any)=><div key={s.id} className="flex justify-between py-3 text-sm"><span><b>{s.id}</b><br/><small className="text-[#77867d]">{s.customer_name}</small></span><b>{money(parseFloat(s.total))}</b></div>)}</div></div></Card><Card><div className="p-5"><h2 className="mb-4 font-bold">ያልተከፈሉ ሂሳቦች</h2>{(dash?.unpaidInvoices??[]).map((u:any)=><div key={u.id} className="flex items-center justify-between border-b py-3 last:border-0"><span className="text-sm font-semibold">{u.customer_name}</span><b>{money(parseFloat(u.owed))}</b></div>)}</div></Card></div></>
+type Page = 'dashboard' | 'sales' | 'purchases' | 'payments' | 'customers' | 'suppliers' | 'inventory' | 'production' | 'expenses' | 'reports' | 'settings'
+const nav: [Page, LucideIcon][] = [
+  ['dashboard', Home], ['sales', ShoppingCart], ['purchases', Truck], ['payments', CreditCard], ['customers', Users],
+  ['suppliers', BookOpen], ['inventory', Package], ['production', Factory], ['expenses', Wallet], ['reports', FileBarChart], ['settings', SettingsIcon],
+]
+
+// Remembered per device; storage may be unavailable (private mode), so never let it throw
+const loadLang = (): Lang => { try { return localStorage.getItem('ledger.lang') === 'en' ? 'en' : 'am' } catch { return 'am' } }
+const storeLang = (l: Lang) => { try { localStorage.setItem('ledger.lang', l) } catch {} }
+
+const empty: AppData = { dash: null, products: [], customers: [], suppliers: [], sales: [], purchases: [], payments: [], expenses: [], productions: [], items: [], packaging: [] }
+
+export default function LedgerApp() {
+  const [lang, setLangState] = useState<Lang>('am')
+  const t = dictionaries[lang]
+  const [page, setPage] = useState<Page>('dashboard')
+  // Open sheets, top last: a detail can open another detail or a form; closing returns to the one below
+  const [stack, setStack] = useState<Modal[]>([])
+  const modal = stack[stack.length - 1] ?? null
+  // Bumped after every save so open detail views reload their data
+  const [version, setVersion] = useState(0)
+  const [mobileMenu, setMobileMenu] = useState(false)
+  const [toast, setToast] = useState('')
+  const [data, setData] = useState<AppData>(empty)
+  const [loading, setLoading] = useState(true)
+  const [apiError, setApiError] = useState('')
+
+  useEffect(() => { setLangState(loadLang()) }, [])
+  const setLang = (l: Lang) => { setLangState(l); storeLang(l) }
+
+  const reload = useCallback(async () => {
+    try {
+      setApiError('')
+      const [dash, products, customers, suppliers, sales, purchases, payments, expenses, productions, items, packaging] = await Promise.all([
+        getDashboard(), getProducts(), getCustomers(), getSuppliers(), getSales(), getPurchases(), getPayments(), getExpenses(), getProductions(), getItems(), getPackaging(),
+      ])
+      setData({ dash, products, customers, suppliers, sales, purchases, payments, expenses, productions, items, packaging })
+    } catch (e: any) {
+      setApiError(e?.message || 'API error')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+  useEffect(() => { reload() }, [reload])
+
+  const open = useCallback((m: Modal) => setStack((s) => [...s, m]), [])
+  const go = (p: Page) => { setPage(p); setStack([]); setMobileMenu(false) }
+  const closeModal = useCallback(() => setStack((s) => s.slice(0, -1)), [])
+  const saved = (msg: string) => {
+    closeModal() // back to the detail the form was opened from (if any), which then reloads
+    setToast(msg)
+    setTimeout(() => setToast(''), 3000)
+    setVersion((v) => v + 1)
+    reload()
+  }
+
+  if (loading) {
+    return <div className="flex min-h-screen items-center justify-center bg-[#f4f7f4]"><div className="text-center"><div className="mb-4 text-4xl">🧵</div><p className="text-[#5e7568]">{t.loading}</p></div></div>
+  }
+  if (apiError) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#f4f7f4]">
+        <div className="max-w-sm rounded-2xl border border-red-200 bg-white p-8 text-center">
+          <div className="mb-3 text-4xl">⚠️</div>
+          <b className="block text-red-700">{t.cantConnect}</b>
+          {/* "Failed to fetch" etc. means no connection: say that plainly */}
+          <p className="mt-2 text-sm text-[#77867d]">{/fetch|network/i.test(apiError) ? t.noConnection : apiError}</p>
+          <button onClick={() => { setLoading(true); reload() }} className="mt-4 rounded-xl bg-[#21633b] px-5 py-2 text-sm text-white">{t.tryAgain}</button>
+        </div>
+      </div>
+    )
+  }
+
+  const pageEl = (() => {
+    switch (page) {
+      case 'dashboard': return <Dashboard t={t} data={data} open={open} />
+      case 'sales': return <TradeList key="sale" t={t} kind="sale" data={data} open={open} />
+      case 'purchases': return <TradeList key="purchase" t={t} kind="purchase" data={data} open={open} />
+      case 'payments': return <PaymentList t={t} data={data} open={open} />
+      case 'customers': return <PeopleList key="customer" t={t} kind="customer" data={data} open={open} />
+      case 'suppliers': return <PeopleList key="supplier" t={t} kind="supplier" data={data} open={open} />
+      case 'inventory': return <Inventory t={t} data={data} open={open} goSettings={() => go('settings')} />
+      case 'production': return <ProductionList t={t} data={data} open={open} />
+      case 'expenses': return <ExpenseList t={t} data={data} open={open} />
+      case 'reports': return <Reports t={t} data={data} open={open} />
+      case 'settings': return <Settings t={t} lang={lang} setLang={setLang} data={data} open={open} />
+    }
+  })()
+
+  const modalEl = (() => {
+    if (!modal) return null
+    const base = { t, onClose: closeModal, onSaved: saved }
+    const detail = { ...base, data, open, version, go: (p: string) => go(p as Page) }
+    switch (modal.kind) {
+      case 'sale':
+      case 'purchase': return <TradeForm {...base} kind={modal.kind} data={data} goTo={go} existing={modal.existing} />
+      case 'payment': return <PaymentForm {...base} data={data} payment={modal.payment} preset={modal.preset} />
+      case 'expense': return <ExpenseForm {...base} expense={modal.expense} />
+      case 'production': return <ProductionForm {...base} data={data} goProducts={() => go('settings')} production={modal.production} />
+      case 'saleDetail': return <SaleDetailView key={modal.id} {...detail} id={modal.id} />
+      case 'purchaseDetail': return <PurchaseDetailView key={modal.id} {...detail} id={modal.id} />
+      case 'paymentDetail': return <PaymentDetailView key={modal.id} {...detail} id={modal.id} />
+      case 'productionDetail': return <ProductionDetailView key={modal.id} {...detail} id={modal.id} />
+      case 'expenseDetail': return <ExpenseDetailView key={modal.id} {...detail} id={modal.id} />
+      case 'itemDetail': return <ItemDetailView key={modal.id} {...detail} id={modal.id} />
+      case 'customerDetail': return <PersonDetailView key={modal.id} {...detail} kind="customer" id={modal.id} />
+      case 'supplierDetail': return <PersonDetailView key={modal.id} {...detail} kind="supplier" id={modal.id} />
+      case 'summary': return <SummaryView key={modal.which} {...detail} which={modal.which} />
+      case 'item': return <ItemForm {...base} item={modal.item} data={data} />
+      case 'packaging': return <PackagingForm {...base} unit={modal.unit} itemId={modal.itemId} data={data} />
+      case 'customer':
+      case 'supplier': return <PersonForm {...base} kind={modal.kind} person={modal.person} />
+    }
+  })()
+
+  return (
+    <div className="min-h-screen bg-[#f4f7f4] text-[#17221e] selection:bg-[#cfe8d5] selection:text-[#17472a]" style={{ fontFamily: 'Noto Sans Ethiopic, sans-serif' }}>
+      <aside className="fixed inset-y-0 left-0 hidden w-72 flex-col border-r border-[#dfe9e1] bg-white/95 p-5 shadow-[8px_0_30px_rgba(28,67,43,0.04)] lg:flex print:hidden">
+        <Brand t={t} />
+        <nav className="mt-8 flex flex-1 flex-col gap-1">
+          {nav.map(([id, I]) => (
+            <button key={id} onClick={() => go(id)} className={`flex items-center gap-3 rounded-xl px-3 py-3 text-sm ${page === id ? 'bg-[#e5f2e8] font-bold text-[#21633b]' : 'text-[#718078]'}`}>
+              <I className="size-[18px]" />{t[id]}
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      <main className="pb-8 lg:pl-72">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-[#dfe9e1] bg-[#f4f7f4]/90 px-4 shadow-[0_1px_12px_rgba(28,67,43,0.04)] backdrop-blur-xl lg:h-20 lg:px-10 print:hidden">
+          <div className="flex items-center gap-3 lg:hidden"><Brand t={t} compact /></div>
+          <span className="hidden text-sm text-[#708178] lg:block">{dateBoth(localDay())}</span>
+          {/* Language is chosen in Settings */}
+          <button aria-label={t.more} onClick={() => setMobileMenu(true)} className="rounded-xl border border-[#dfe9e1] bg-white p-2 text-[#21633b] lg:hidden"><Menu className="size-5" /></button>
+        </header>
+        <div className="mx-auto max-w-[1440px] px-4 py-5 sm:px-6 lg:px-10 lg:py-9">{pageEl}</div>
+      </main>
+
+      {mobileMenu && (
+        <div className="fixed inset-0 z-50 bg-black/30 lg:hidden" onClick={() => setMobileMenu(false)}>
+          <div className="absolute inset-x-3 bottom-3 rounded-3xl border border-[#dfe9e1] bg-white p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between">
+              <b className="text-base">{t.more}</b>
+              <button aria-label={t.close} onClick={() => setMobileMenu(false)} className="rounded-xl p-2 text-[#718078]"><X className="size-5" /></button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              {nav.map(([id, I]) => (
+                <button key={id} onClick={() => go(id)} className={`flex items-center gap-3 rounded-xl border p-3 text-left text-sm font-semibold ${page === id ? 'border-[#b9d9c1] bg-[#e5f2e8] text-[#21633b]' : 'border-[#e5ebe6] text-[#52645a]'}`}>
+                  <I className="size-4" />{t[id]}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modalEl}
+
+      {toast && <div role="status" className="fixed bottom-20 left-1/2 z-[60] -translate-x-1/2 rounded-xl bg-[#173c2b] px-5 py-3 text-sm text-white">{toast}</div>}
+    </div>
+  )
 }
-function ListPage({title,data,type,t,q,setQ,onNew}:any){return <><Head title={title} sub={type==='sale'?'የደንበኞችን ሽያጭ፣ ክፍያ እና ቀሪ ሂሳብ ይከታተሉ።':'የጥሬ እቃ ግዢዎችን እና የአቅራቢ ዕዳን ይቆጣጠሩ።'} action={<Button onClick={onNew} className="bg-[#21633b] shadow-[0_6px_14px_rgba(33,99,59,0.18)] transition-all hover:bg-[#174d2c] active:scale-[0.98]"><Plus data-icon="inline-start"/>{type==='sale'?t.newSale:t.newPurchase}</Button>}/><div className="mb-4 max-w-sm"><div className="relative"><Search className="absolute left-3 top-3 size-4 text-[#8b978f]"/><input value={q} onChange={e=>setQ(e.target.value)} placeholder={t.search} className="h-10 w-full rounded-xl border pl-10"/></div></div><Card><div className="hidden grid-cols-6 gap-2 bg-[#f6f9f6] p-4 text-xs text-[#77867d] md:grid"><span>ማጣቀሻ</span><span>ቀን</span><span>{type==='sale'?'ደንበኛ':'አቅራቢ'}</span><span>ጠቅላላ</span><span>የተከፈለ</span><span>ሁኔታ</span></div>{data.filter((x:any)=>(type==='sale'?customer(x.customerId):supplier(x.supplierId)).name.includes(q)||x.id.includes(q)).map((x:any)=>{const total=type==='sale'?saleTotal(x):purchaseTotal(x),paid=type==='sale'?salePaid(x.id):purchasePaid(x.id);return <div key={x.id} className="grid grid-cols-2 gap-2 border-t p-4 text-sm md:grid-cols-6"><b>{x.id}</b><span>{dateBoth(x.date)}</span><span>{(type==='sale'?customer(x.customerId):supplier(x.supplierId)).name}</span><b>{money(total)}</b><span>{money(paid)}</span><span className={`w-fit rounded-full px-2 py-1 text-xs ${paid===total?'bg-[#e5f2e8] text-[#287342]':paid?'bg-[#fff4dc] text-[#a66a00]':'bg-[#fce9e8] text-[#a54542]'}`}>{paid===total?t.paid:paid?t.partial:t.unpaid}</span></div>})}</Card></>}
-function Payments({t,onNew}:any){return <><Head title={t.payments} sub="እያንዳንዱ ክፍያ ከዋናው ሽያጭ/ግዢ ተለይቶ ይመዝገባል።" action={<Buttfunction Directory({type,t,customers,suppliers,onAdd}:any){const list=type==='customer'?customers:suppliers;const[showForm,setShowForm]=useState(false);const[name,setName]=useState('');const[phone,setPhone]=useState('');const[address,setAddress]=useState('');const label=type==='customer'?'ደንበኛ':'አቅራቢ';const save=async()=>{if(!name.trim()||!phone.trim())return;try{if(type==='customer')await createCustomer({name,phone,address,note:''});else await createSupplier({name,phone,address});setName('');setPhone('');setAddress('');setShowForm(false);if(onAdd)onAdd();}catch(e:any){alert(e.message);}};return <><Head title={type==='customer'?t.customers:t.suppliers} sub="የሂሳብ መግለጫ እና የክፍያ ታሪክ" action={<Button onClick={()=>setShowForm(!showForm)} className="bg-[#21633b] shadow-[0_6px_14px_rgba(33,99,59,0.18)] transition-all hover:bg-[#174d2c] active:scale-[0.98]"><Plus data-icon="inline-start"/>{label} መዝግብ</Button>}/>{showForm&&<div className="fixed inset-0 z-50 flex items-end bg-black/30 p-0 backdrop-blur-[2px] sm:items-center sm:justify-center sm:p-4"><div className="w-full max-w-2xl"><Card><div className="grid gap-3 p-5 sm:grid-cols-3"><label className="text-sm font-semibold">ስም<input value={name} onChange={e=>setName(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3" placeholder={type==='customer'?'ለምሳሌ፦ ሚካኤል ልብስ ቤት':'ለምሳሌ፦ አዲስ ክር አቅራቢ'}/></label><label className="text-sm font-semibold">ስልክ<input value={phone} onChange={e=>setPhone(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3" placeholder="+251 911 234 567"/></label><label className="text-sm font-semibold">አድራሻ<input value={address} onChange={e=>setAddress(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3"/></label></div><div className="flex gap-2 px-5 pb-5"><Button variant="outline" onClick={()=>setShowForm(false)}>{t.cancel}</Button><Button onClick={save} className="bg-[#21633b] shadow-[0_6px_14px_rgba(33,99,59,0.18)] transition-all hover:bg-[#174d2c] active:scale-[0.98]">{label} አስቀምጥ</Button></div></Card></div></div>}<div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{list.map((p:any)=><Card key={p.id}><div className="p-5"><div className="flex items-center gap-3"><div className="flex size-11 items-center justify-center rounded-full bg-[#e5f2e8] font-bold text-[#21633b]">{p.name.slice(0,1)}</div><div><b>{p.name}</b><p className="text-xs text-[#77867d]">{p.phone}</p></div></div><div className="mt-5 border-t pt-4"><small className="text-[#77867d]">ቀሪ ዕዳ</small><div className="text-lg font-bold">{money(parseFloat(p.balance_due??'0'))}</div></div></div></Card>)}</div></>;}assName="mt-2 h-11 w-full rounded-xl border px-3"/></label></div><div className="flex gap-2 px-5 pb-5"><Button variant="outline" onClick={()=>setShowForm(false)}>{t.cancel}</Button><Button onClick={save} className="bg-[#21633b] shadow-[0_6px_14px_rgba(33,99,59,0.18)] transition-all hover:bg-[#174d2c] active:scale-[0.98]">{label} አስቀምጥ</Button></div></Card></div></div>}<div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">{[...added,...list].map((p:any)=><Card key={p.id}><div className="p-5"><div className="flex items-center gap-3"><div className="flex size-11 items-center justify-center rounded-full bg-[#e5f2e8] font-bold text-[#21633b]">{p.name.slice(0,1)}</div><div><b>{p.name}</b><p className="text-xs text-[#77867d]">{p.phone}</p></div></div><div className="mt-5 border-t pt-4"><small className="text-[#77867d]">ቀሪ ዕዳ</small><div className="text-lg font-bold">{money(type==='customer'?sales.filter(s=>s.customerId===p.id).reduce((a,s)=>a+Math.max(0,saleTotal(s)-salePaid(s.id)),0):purchases.filter(s=>s.supplierId===p.id).reduce((a,s)=>a+Math.max(0,purchaseTotal(s)-purchasePaid(s.id)),0))}</div></div></div></Card>)}</div></>}
-function Inventory({t}:any){const[showForm,setShowForm]=useState(false);const[name,setName]=useState('');const[weight,setWeight]=useState('');const[size,setSize]=useState('');const[added,setAdded]=useState<any[]>([]);const save=()=>{if(!name.trim()||!weight)return;setAdded([{id:`custom-${Date.now()}`,nameAm:name,nameEn:name,type:'finished',weightGrams:Number(weight),size:size||`${weight} g`,unit:'ኮን',stock:0,price:0,reorder:0},...added]);setName('');setWeight('');setSize('');setShowForm(false)};return <><Head title={t.inventory} sub="ጥሬ እቃ እና የተዘጋጁ ኮኖችን በተለየ ምድብ ይከታተሉ።" action={<Button onClick={()=>setShowForm(!showForm)} className="bg-[#21633b] shadow-[0_6px_14px_rgba(33,99,59,0.18)] transition-all hover:bg-[#174d2c] active:scale-[0.98]"><Plus data-icon="inline-start"/>የኮን አይነት ጨምር</Button>}/>{showForm&&<div className="fixed inset-0 z-50 flex items-end bg-black/30 p-0 backdrop-blur-[2px] sm:items-center sm:justify-center sm:p-4"><div className="w-full max-w-2xl"><Card><div className="grid gap-3 p-5 sm:grid-cols-3"><label className="text-sm font-semibold">የኮን ስም<input value={name} onChange={e=>setName(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3" placeholder="ለምሳሌ��� ክር ኮን 750ግ"/></label><label className="text-sm font-semibold">ክብደት (ግራም)<input min="1" type="number" value={weight} onChange={e=>setWeight(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3"/></label><label className="text-sm font-semibold">መጠን / መግለጫ<input value={size} onChange={e=>setSize(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3" placeholder="750 g"/></label></div><div className="flex gap-2 px-5 pb-5"><Button variant="outline" onClick={()=>setShowForm(false)}>{t.cancel}</Button><Button onClick={save} className="bg-[#21633b] shadow-[0_6px_14px_rgba(33,99,59,0.18)] transition-all hover:bg-[#174d2c] active:scale-[0.98]">አስቀምጥ</Button></div></Card></div></div>}<div className="grid gap-4 lg:grid-cols-2">{(['raw','finished'] as const).map(k=><Card key={k}><div className="bg-[#f6f9f6] p-5"><h2 className="font-bold">{k==='raw'?'ጥሬ ትልቅ ኮኖች':'የተዘጋጁ ትንንሽ ኮኖች'}</h2></div>{products.filter(p=>p.type===k).map(p=><div key={p.id} className="flex justify-between border-t p-4"><span><b>{p.nameAm}</b><small className="block text-[#77867d]">{p.size}</small></span><b>{p.stock} {p.unit}</b></div>)}</Card>)}</div></>}
-function Production({t}:any){return <><Head title={t.production} sub="ክብደቱ እንዲመጣጠን ውጤት + ብክነት = ጥሬ እቃ መሆኑን ያረጋግጡ።" action={<Button className="bg-[#21633b] shadow-[0_6px_14px_rgba(33,99,59,0.18)] transition-all hover:bg-[#174d2c] active:scale-[0.98]">ምርት አስቀምጥ</Button>}/><Card><div className="grid gap-4 p-5 sm:grid-cols-2"><label className="text-sm font-semibold">ጥሬ እቃ (ግራም)<input type="number" defaultValue="20000" className="mt-2 h-11 w-full rounded-xl border px-3"/></label><label className="text-sm font-semibold">ቀን<input type="date" defaultValue="2026-10-21" className="mt-2 h-11 w-full rounded-xl border px-3"/></label></div><div className="m-5 rounded-xl bg-[#f6f9f6] p-4 text-sm">ውጤት: <b>19,000 ግ</b> · ብክነት: <b>1,000 ግ</b> · ጠቅላላ: <b>20,000 ግ</b></div></Card></>}
-function Expenses({t}:any){return <><Head title={t.expenses} sub="የንግድ ወጪዎችን ከክፍያ ግብይቶች ተለይተው ይመዝግቡ።" action={<Button className="bg-[#21633b] shadow-[0_6px_14px_rgba(33,99,59,0.18)] transition-all hover:bg-[#174d2c] active:scale-[0.98]"><Plus data-icon="inline-start"/>አዲስ ወጪ</Button>}/><Card><div className="p-5">{expenses.map(e=><div key={e.id} className="flex justify-between border-t py-4 text-sm"><span><b>{e.description}</b><small className="block text-[#77867d]">{e.category} · {dateBoth(e.date)}</small></span><b>{money(e.amount)}</b></div>)}</div></Card></>}
-function Reports({totals}:any){return <><Head title="ሪፖርቶች" sub="የሙከራ መረጃ ላይ የተመሰረቱ ሪፖርቶች።" action={<Button variant="outline" onClick={()=>window.print()}>አትም</Button>}/><div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4"><Stat label="ሽያጭ" value={money(totals.totalSales)} icon={ShoppingCart}/><Stat label="ደንበኛ ዕዳ" value={money(totals.customerDebt)} icon={Users} color="amber"/><Stat label="አቅራቢ ዕዳ" value={money(totals.supplierDebt)} icon={Truck} color="red"/><Stat label="ክምችት" value={money(totals.stock)} icon={Package} color="blue"/></div><p className="mt-5 rounded-xl bg-[#fff7e8] p-4 text-sm text-[#7d662d]">ይህ የሙከራ መረጃ ነው፤ ቀጥታ የንግድ መረጃ አይደለም።</p></>}
-function Settings(){return <><Head title="ቅንብሮች" sub="የመዝገቡን ምርጫዎች ያስተካክሉ።"/><Card><div className="p-5"><b>የንግድ መረጃ</b><p className="mt-2 text-sm text-[#77867d]">ኮን መዝገብ · አዲስ አበባ · የኢትዮጵያ ብር (ETB)</p></div><div className="border-t p-5 text-sm">ቀን: Gregorian · DD MMM YYYY</div><div className="border-t p-5 text-sm text-[#7d662d]">ይህ የፊት-ለፊት ሙከራ ��ው። የደህንነት ምትኬ ወይም የደመና ማመሳሰል አያቀርብም።</div></Card></>}
-function SaleLines({products,onTotal}:{products:any[];onTotal:(total:number)=>void}){const[lines,setLines]=useState([{id:Date.now(),productId:products[0]?.id||'',quantity:'1',price:''}]);const update=(id:number,key:string,value:string)=>{const next=lines.map(line=>line.id===id?{...line,[key]:value}:line);setLines(next);onTotal(next.reduce((sum,line)=>sum+Math.max(0,Number(line.quantity)||0)*Math.max(0,Number(line.price)||0),0))};const add=()=>setLines([...lines,{id:Date.now(),productId:products[0]?.id||'',quantity:'1',price:''}]);const remove=(id:number)=>{if(lines.length===1)return;const next=lines.filter(line=>line.id!==id);setLines(next);onTotal(next.reduce((sum,line)=>sum+Math.max(0,Number(line.quantity)||0)*Math.max(0,Number(line.price)||0),0))};return <div className="rounded-2xl border border-[#dfe9e1] bg-[#f7faf7] p-4"><div className="mb-3 flex items-center justify-between"><b>የሚሸጡ ኮኖች</b><Button type="button" variant="outline" size="sm" onClick={add}><Plus data-icon="inline-start"/>ኮን ጨምር</Button></div><div className="flex flex-col gap-3">{lines.map((line,index)=><div key={line.id} className="grid gap-2 sm:grid-cols-[1fr_90px_110px_auto]"><select aria-label={`ኮን ${index+1}`} value={line.productId} onChange={e=>update(line.id,'productId',e.target.value)} className="h-11 rounded-xl border bg-white px-3">{products.map((p:any)=><option key={p.id} value={p.id}>{p.name_am??p.nameAm} · {p.size}</option>)}</select><input aria-label="ብዛት" min="0" type="number" value={line.quantity} onChange={e=>update(line.id,'quantity',e.target.value)} placeholder="ብዛት" className="h-11 rounded-xl border px-3"/><input aria-label="ዋጋ" min="0" type="number" value={line.price} onChange={e=>update(line.id,'price',e.target.value)} placeholder="ዋጋ" className="h-11 rounded-xl border px-3"/><Button type="button" variant="ghost" onClick={()=>remove(line.id)} aria-label="ኮን አስወግድ"><X data-icon="inline-start"/></Button></div>)}</div><div className="mt-3 text-right text-sm text-[#617168]">ጠቅላላ: <b className="text-[#17221e]">{money(lines.reduce((sum,line)=>sum+Math.max(0,Number(line.quantity)||0)*Math.max(0,Number(line.price)||0),0))}</b></div></div>}
-function PurchaseLines({onTotal}:{onTotal:(total:number)=>void}){const[lines,sfunction Modal({kind,t,products,customers,suppliers,close,saved}:any){const[amt,setAmt]=useState('');const[saleTotal,setSaleTotal]=useState(0);const[purchaseTotalVal,setPurchaseTotalVal]=useState(0);const[entryDate,setEntryDate]=useState(new Date().toISOString().slice(0,10));const[selectedCustomerId,setSelectedCustomerId]=useState(customers[0]?.id??'');const[selectedSupplierId,setSelectedSupplierId]=useState(suppliers[0]?.id??'');const[selectedPersonId,setSelectedPersonId]=useState(customers[0]?.id??'');const[personKind,setPersonKind]=useState<'customer'|'supplier'>('customer');const rawProducts=products.filter((p:any)=>p.type==='raw');const finProducts=products.filter((p:any)=>p.type==='finished');const[coneId,setConeId]=useState(rawProducts[0]?.id??'');const selectedCone=products.find((p:any)=>p.id===coneId);const baseTotal=kind==='sale'?saleTotal:purchaseTotalVal;const handleSave=()=>{let data:any;if(kind==='sale'){data={date:entryDate,customerId:selectedCustomerId,items:[],paid:Number(amt||0),discount:0,note:''};}else if(kind==='purchase'){data={date:entryDate,supplierId:selectedSupplierId,items:[{productId:coneId,quantity:1,price:baseTotal}],paid:Number(amt||0),note:''};}else{data={date:entryDate,kind:personKind,personId:selectedPersonId,amount:Number(amt||0),allocations:[],note:''};}const msg=kind==='payment'?'ክፍያው ተመዝግቧል':kind==='sale'?'ሽያጩ ተመዝግቧል':`ግዢው ተመዝግቧል`;saved(msg,data);};return <div className="fixed inset-0 z-50 flex items-end bg-black/30 sm:items-center sm:justify-center sm:p-4"><div className="w-full max-w-lg rounded-t-3xl bg-white p-5 sm:rounded-3xl"><div className="mb-5 flex justify-between"><h2 className="text-xl font-bold">{kind==='sale'?t.newSale:kind==='purchase'?t.newPurchase:t.recordPayment}</h2><button onClick={close}><X/></button></div><div className="flex flex-col gap-4"><label className="text-sm font-semibold">{kind==='payment'?'የክፍያ ቀን':kind==='sale'?'የሽያጭ ቀን':'የግዢ ቀን'}<input type="date" value={entryDate} onChange={e=>setEntryDate(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3"/><span className="mt-1 block text-xs font-normal text-[#77867d]">{dateBoth(entryDate)}</span></label>{kind==='sale'&&<label className="text-sm font-semibold">ደንበኛ<select value={selectedCustomerId} onChange={e=>setSelectedCustomerId(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3">{customers.map((x:any)=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>}{kind==='purchase'&&<label className="text-sm font-semibold">አቅራቢ<select value={selectedSupplierId} onChange={e=>setSelectedSupplierId(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3">{suppliers.map((x:any)=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label>}{kind==='payment'&&<><label className="text-sm font-semibold">ክፍያ አይነት<select value={personKind} onChange={e=>{setPersonKind(e.target.value as any);setSelectedPersonId(e.target.value==='customer'?customers[0]?.id??'':suppliers[0]?.id??'');}} className="mt-2 h-11 w-full rounded-xl border px-3"><option value="customer">ደንበኛ</option><option value="supplier">አቅራቢ</option></select></label><label className="text-sm font-semibold">{personKind==='customer'?'ደንበኛ':'አቅራቢ'}<select value={selectedPersonId} onChange={e=>setSelectedPersonId(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3">{(personKind==='customer'?customers:suppliers).map((x:any)=><option key={x.id} value={x.id}>{x.name}</option>)}</select></label></>}{kind==='sale'&&<SaleLines products={finProducts} onTotal={setSaleTotal}/>}{kind==='purchase'&&<><PurchaseLines products={rawProducts} onTotal={setPurchaseTotalVal}/><label className="text-sm font-semibold">የኮን አይነት<select value={coneId} onChange={e=>setConeId(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3">{rawProducts.map((p:any)=><option key={p.id} value={p.id}>{p.name_am} · {p.size}</option>)}</select></label></>}{kind!=='payment'&&<label className="text-sm font-semibold">የተከፈለ (ብር)<input min="0" type="number" value={amt} onChange={e=>setAmt(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3"/></label>}{kind==='payment'&&<label className="text-sm font-semibold">መጠን (ብር)<input min="0" type="number" value={amt} onChange={e=>setAmt(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3"/></label>}{kind!=='payment'&&<div className="rounded-xl bg-[#f6f9f6] p-4 text-sm">ጠቅላላ: <b>{money(baseTotal)}</b> · ቀሪ: <b>{money(Math.max(0,baseTotal-Number(amt||0)))}</b></div>}</div><div className="mt-6 flex gap-2"><Button variant="outline" onClick={close} className="flex-1">{t.cancel}</Button><Button onClick={handleSave} className="flex-1 bg-[#21633b]">{t.save}</Button></div></div></div>;}text-[#77867d]">{dateBoth(entryDate)} · Gregorian / የኢትዮጵያ ዘመን</span></label><label className="text-sm font-semibold">{kind==='sale'?'ደንበኛ':kind==='purchase'?'አቅራቢ':'ክፍያ የሚያደርግ'}<select className="mt-2 h-11 w-full rounded-xl border px-3">{[...customers,...suppliers].map(x=><option key={x.id}>{x.name}</option>)}</select></label>{kind==='sale'&&<SaleLines onTotal={setSaleTotal}/>} {kind==='purchase'&&<PurchaseLines onTotal={setPurchaseTotal}/>} {kind==='purchase'&&<><label className="text-sm font-semibold">የኮን አይነት<select value={coneId} onChange={e=>setConeId(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3">{products.filter(p=>p.type==='raw').map(p=><option key={p.id} value={p.id}>{p.nameAm} · {p.size}</option>)}</select></label><label className="text-sm font-semibold">ጠቅላላ ክብደት (ኪ.ግ)<input min="0" step="0.001" type="number" value={kilos} onChange={e=>setKilos(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3" placeholder="ለምሳሌ፦ 200"/><span className="mt-1 block text-xs font-normal text-[#77867d]">የጥሬ ኮኑን አይነት እና በኪሎ ግራም የተገዛውን መጠን ይመዝግቡ።</span></label></>}{kind!=='payment'&&<label className="text-sm font-semibold">የተከፈ�� (ብር)<input min="0" type="number" value={amt} onChange={e=>setAmt(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3"/></label>}{kind==='payment'&&<label className="text-sm font-semibold">መጠን (ብር)<input min="0" type="number" value={amt} onChange={e=>setAmt(e.target.value)} className="mt-2 h-11 w-full rounded-xl border px-3"/></label>}{kind!=='payment'&&<div className="rounded-xl bg-[#f6f9f6] p-4 text-sm">ጠቅላላ: <b>{money(baseTotal)}</b> · ቀሪ: <b>{money(Math.max(0,baseTotal-Number(amt||0)))}</b></div>}</div><div className="mt-6 flex gap-2"><Button variant="outline" onClick={close} className="flex-1">{t.cancel}</Button><Button disabled={Number(amt)<0||(kind==='purchase'&&kiloValue<=0)} onClick={()=>saved(kind==='payment'?'ክፍያው ተመዝግቧል':kind==='sale'?'ሽያጩ ተመዝግቧል · SAL-1043':`ግዢው ተመዝግቧል · ${selectedCone?.nameAm} · ${kilos} ኪ.ግ`)} className="flex-1 bg-[#21633b]">{t.save}</Button></div></div></div>}
+
+function Brand({ t, compact = false }: { t: { appName: string }; compact?: boolean }) {
+  return (
+    <div className="flex items-center gap-3">
+      {/* eslint-disable-next-line @next/next/no-img-element -- static SVG logo, no optimisation needed */}
+      <img src="/logo.svg" alt={t.appName} width={40} height={40} className="size-10 shrink-0 rounded-[11px] shadow-[0_6px_14px_rgba(33,99,59,0.22)]" />
+      {!compact && <div><b className="text-[15px] tracking-tight">መዝገብ</b><div className="mt-0.5 text-[10px] font-semibold tracking-[0.18em] text-[#829189]">MEZGEB</div></div>}
+    </div>
+  )
+}

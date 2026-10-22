@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { query } from '@/lib/db'
+import { errorResponse } from '@/lib/http'
+import { CUSTOMER_BALANCE_SQL } from '@/lib/ledger'
 
 export const runtime = 'nodejs'
 
@@ -15,23 +17,15 @@ const CustomerSchema = z.object({
 // GET /api/customers
 export async function GET() {
   try {
+    // balance = total sold − total paid (negative = the customer has credit)
     const result = await query(`
-      SELECT c.*,
-        COALESCE(SUM(GREATEST(0,
-          (SELECT COALESCE(SUM(si.quantity * si.price), 0) FROM sale_items si WHERE si.sale_id = s.id) - s.discount
-          - COALESCE((SELECT SUM(pa.amount) FROM payment_allocations pa
-                      JOIN payments p ON p.id = pa.payment_id
-                      WHERE pa.transaction_id = s.id AND p.kind = 'customer'), 0)
-        )), 0) AS balance_due
+      SELECT c.*, ${CUSTOMER_BALANCE_SQL('c.id')} AS balance_due
       FROM customers c
-      LEFT JOIN sales s ON s.customer_id = c.id
-      GROUP BY c.id
       ORDER BY c.name
     `)
     return NextResponse.json(result.rows)
   } catch (err) {
-    console.error(err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return errorResponse(err)
   }
 }
 
@@ -51,7 +45,6 @@ export async function POST(req: NextRequest) {
     )
     return NextResponse.json(result.rows[0], { status: 201 })
   } catch (err) {
-    console.error(err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return errorResponse(err)
   }
 }

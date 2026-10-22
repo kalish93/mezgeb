@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { query } from '@/lib/db'
+import { errorResponse } from '@/lib/http'
 
 export const runtime = 'nodejs'
 
@@ -35,8 +36,7 @@ export async function GET(req: NextRequest) {
     )
     return NextResponse.json(result.rows)
   } catch (err) {
-    console.error(err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return errorResponse(err)
   }
 }
 
@@ -56,7 +56,6 @@ export async function POST(req: NextRequest) {
     )
     return NextResponse.json(result.rows[0], { status: 201 })
   } catch (err) {
-    console.error(err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return errorResponse(err)
   }
 }

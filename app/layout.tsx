@@ -1,36 +1,29 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
+import { ServiceWorkerRegister } from '@/components/sw-register'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'ኮን መዝገብ | Cone Ledger',
+  title: 'መዝገብ | Mezgeb',
   description: 'የኢትዮጵያ ክር ኮን ንግድ ዲጂታል መዝገብ',
-  generator: 'v0.app',
+  applicationName: 'መዝገብ',
+  // the manifest itself comes from app/manifest.ts
   icons: {
     icon: [
-      {
-        url: '/icon-light-32x32.png',
-        media: '(prefers-color-scheme: light)',
-      },
-      {
-        url: '/icon-dark-32x32.png',
-        media: '(prefers-color-scheme: dark)',
-      },
-      {
-        url: '/icon.svg',
-        type: 'image/svg+xml',
-      },
+      { url: '/logo.svg', type: 'image/svg+xml' },
+      { url: '/icons/favicon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
     ],
-    apple: '/apple-icon.png',
+    apple: { url: '/icons/apple-touch-icon.png', sizes: '180x180' },
   },
+  // Installed on an iPhone / iPad: open full-screen with this name
+  appleWebApp: { capable: true, title: 'መዝገብ', statusBarStyle: 'default' },
+  formatDetection: { telephone: false },
 }
 
 export const viewport: Viewport = {
-  colorScheme: 'light dark',
-  themeColor: [
-    { media: '(prefers-color-scheme: light)', color: 'white' },
-    { media: '(prefers-color-scheme: dark)', color: 'black' },
-  ],
+  colorScheme: 'light',
+  themeColor: '#21633b',
 }
 
 export default function RootLayout({
@@ -42,6 +35,7 @@ export default function RootLayout({
     <html lang="am" dir="ltr">
       <body className="antialiased">
         {children}
+        <ServiceWorkerRegister />
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
