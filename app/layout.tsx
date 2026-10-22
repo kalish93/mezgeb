@@ -19,6 +19,8 @@ export const metadata: Metadata = {
   // Installed on an iPhone / iPad: open full-screen with this name
   appleWebApp: { capable: true, title: 'መዝገብ', statusBarStyle: 'default' },
   formatDetection: { telephone: false },
+  // The app has its own Amharic / English switch, so stop Chrome/Edge offering to translate every page
+  other: { google: 'notranslate' },
 }
 
 export const viewport: Viewport = {
@@ -32,7 +34,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="am" dir="ltr">
+    <html lang="am" dir="ltr" translate="no">
       <body className="antialiased">
         {children}
         <ServiceWorkerRegister />
