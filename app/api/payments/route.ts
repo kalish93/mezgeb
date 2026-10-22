@@ -1,23 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { z } from 'zod'
 import { pool, query } from '@/lib/db'
+import { errorResponse } from '@/lib/http'
+import { allocatePayment, PaymentSchema } from '@/lib/ledger'
 
 export const runtime = 'nodejs'
-
-const AllocationSchema = z.object({
-  transactionId: z.string().min(1),
-  amount: z.number().min(0),
-})
-
-const PaymentSchema = z.object({
-  id: z.string().optional(),
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  kind: z.enum(['customer', 'supplier']),
-  personId: z.string().min(1),
-  amount: z.number().min(0.01),
-  allocations: z.array(AllocationSchema).default([]),
-  note: z.string().default(''),
-})
 
 // GET /api/payments
 export async function GET(req: NextRequest) {
@@ -52,8 +38,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(result.rows)
   } catch (err) {
-    console.error(err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return errorResponse(err)
   }
 }
 
@@ -61,8 +46,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const client = await pool.connect()
   try {
-    const body = await req.json()
-    const parsed = PaymentSchema.safeParse(body)
+    const parsed = PaymentSchema.safeParse(await req.json())
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 })
     }
@@ -70,25 +54,17 @@ export async function POST(req: NextRequest) {
     const paymentId = id || `PAY-${Date.now()}`
 
     await client.query('BEGIN')
-
     await client.query(
       `INSERT INTO payments (id, date, kind, person_id, amount, note) VALUES ($1,$2,$3,$4,$5,$6)`,
       [paymentId, date, kind, personId, amount, note]
     )
-
-    for (const alloc of allocations) {
-      await client.query(
-        `INSERT INTO payment_allocations (payment_id, transaction_id, amount) VALUES ($1,$2,$3)`,
-        [paymentId, alloc.transactionId, alloc.amount]
-      )
-    }
-
+    // No explicit allocations → applied to the person's oldest open invoices (FIFO)
+    await allocatePayment(client, paymentId, kind, personId, amount, allocations)
     await client.query('COMMIT')
     return NextResponse.json({ id: paymentId }, { status: 201 })
   } catch (err) {
-    await client.query('ROLLBACK')
-    console.error(err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    await client.query('ROLLBACK').catch(() => {})
+    return errorResponse(err)
   } finally {
     client.release()
   }

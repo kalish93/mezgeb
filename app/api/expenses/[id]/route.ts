@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { query } from '@/lib/db'
+import { errorResponse } from '@/lib/http'
 
 export const runtime = 'nodejs'
 
@@ -24,8 +25,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
     }
     return NextResponse.json(result.rows[0])
   } catch (err) {
-    console.error(err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return errorResponse(err)
   }
 }
 
@@ -52,8 +52,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
     }
     return NextResponse.json(result.rows[0])
   } catch (err) {
-    console.error(err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return errorResponse(err)
   }
 }
 
@@ -67,7 +66,6 @@ export async function DELETE(_req: NextRequest, { params }: Ctx) {
     }
     return NextResponse.json({ deleted: result.rows[0].id })
   } catch (err) {
-    console.error(err)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return errorResponse(err)
   }
 }

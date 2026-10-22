@@ -1,0 +1,14 @@
+{
+  "_comment": "Initial products and packaging. Base unit for finished stock is TUBA (ቱባ). 1 Madaberiya/Tidosh = tubaPerPacket × packetsPerMadaberiya TUBA. Edit conversions later in the app (Settings); re-running the seeder never overwrites them.",
+  "units": {
+    "MADABERIYA_TIDOSH": { "label_am": "ማዳበሪያ / ትዶሽ", "label_en": "Madaberiya / Tidosh" },
+    "PACKET":            { "label_am": "ፓኬት",          "label_en": "Packet" },
+    "PIECE":             { "label_am": "ፍሬ",            "label_en": "Piece" }
+  },
+  "products": [
+    { "code": "MENEN",    "name_am": "መነን",    "name_en": "Menen",    "tubaPerPacket": 30, "packetsPerMadaberiya": 20, "tubaPerPiece": 4 },
+    { "code": "PC",       "name_am": "ፒሲ",     "name_en": "PC",       "tubaPerPacket": 20, "packetsPerMadaberiya": 20, "tubaPerPiece": 4 },
+    { "code": "BLACK_PC", "name_am": "ጥቁር ፒሲ", "name_en": "Black PC", "tubaPerPacket": 20, "packetsPerMadaberiya": 20, "tubaPerPiece": 4 },
+    { "code": "COTTON",   "name_am": "ኮተን",    "name_en": "Cotton",   "tubaPerPacket": 20, "packetsPerMadaberiya": 10, "tubaPerPiece": 4 }
+  ]
+}

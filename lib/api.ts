@@ -1,27 +1,47 @@
-/**
- * Typed API client for Cone Ledger backend (Next.js built-in API routes).
- * Uses a relative /api base so it works on any deployment without config.
- * Override with NEXT_PUBLIC_API_URL if you ever need an absolute URL.
- */
+/** Typed client for the app's own API routes (app/api/*), served from the same origin. */
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? '/api'
+const BASE = '/api'
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
     ...init,
   })
+  if (res.status === 401 && typeof window !== 'undefined') {
+    window.location.href = '/login' // signed out (or password changed): back to the login page
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}))
-    throw new Error(body?.error ?? `HTTP ${res.status}`)
+    const err = body?.error
+    // Error codes / messages are strings; zod validation errors are objects — flatten those to text
+    const fieldErrors = err && typeof err === 'object' ? Object.values({ ...err.fieldErrors }).flat().concat(err.formErrors ?? []) : []
+    throw new Error(typeof err === 'string' ? err : fieldErrors.join(', ') || `HTTP ${res.status}`)
   }
   return res.json() as Promise<T>
 }
 
-// ─── Types (mirrors mock-data.ts) ────────────────────────────────
+// ─── Types (rows as returned by app/api/*) ───────────────────────
+/** Product identity: one name and code, shared by its raw and finished stock. */
+export type Item = { id: string; code: string | null; name_am: string; name_en: string; active: boolean }
+
+/** One stock balance of an item: type 'raw' = RAW_CONE (kg), 'finished' = FINISHED_PRODUCT (TUBA). */
 export type Product = {
-  id: string; name_am: string; name_en: string; type: 'raw' | 'finished'
-  weight_grams: number; size: string; unit: string; stock: number; price: number; reorder: number
+  id: string; item_id: string; item_code: string | null; item_active: boolean
+  form: 'RAW_CONE' | 'FINISHED_PRODUCT'
+  name_am: string; name_en: string; type: 'raw' | 'finished'
+  weight_grams: number; size: string; unit: string; stock: number
+  price: number      // per ONE base unit (finished); packaging units carry their own prices
+  buy_price: number  // per ONE base unit (kg for raw cone)
+  reorder: number; can_buy: boolean; can_sell: boolean
+  unit_value: number // value of one base unit for "stock value" (see lib/stock.ts UNIT_VALUE_SQL)
+}
+
+/** A selling unit of an item, in base units (TUBA). price is per ONE of this unit, null = not set. */
+export type PackagingUnit = {
+  id: number; item_id: string; item_name_am: string; item_code: string | null; base_unit: string | null
+  unit_code: 'MADABERIYA_TIDOSH' | 'PACKET' | 'PIECE'; base_per_unit: number
+  label_am: string; label_en: string; price: number | null; is_default: boolean; active: boolean
+  updated_at: string
 }
 
 export type Customer = {
@@ -34,7 +54,11 @@ export type Supplier = {
   balance_due?: number
 }
 
-export type SaleItem = { productId: string; quantity: number; price: number }
+/** quantity and price are in the selling unit; baseQuantity is what left stock. */
+export type SaleItem = {
+  productId: string; quantity: number; price: number
+  unitCode?: string; unitLabel?: string; unitFactor?: number; baseQuantity?: number
+}
 export type Sale = {
   id: string; date: string; customer_id: string; customer_name: string
   discount: number; total: number; paid: number; note: string
@@ -58,7 +82,11 @@ export type Expense = {
   id: string; date: string; category: string; description: string; amount: number; note: string
 }
 
-export type ProductionOutput = { productId: string; quantity: number; grams: number }
+/** quantity = base units added (TUBA); unitQuantity is what was entered, in unitCode. */
+export type ProductionOutput = {
+  productId: string; productName?: string; baseUnit?: string
+  quantity: number; unitCode: string; unitFactor: number; unitQuantity: number
+}
 export type Production = {
   id: string; date: string; raw_product_id: string; raw_product_name: string
   raw_quantity: number; input_grams: number; waste_grams: number; note: string
@@ -76,16 +104,26 @@ export const getDashboard = () => apiFetch<DashboardData>('/dashboard')
 
 // ─── Products ────────────────────────────────────────────────────
 export const getProducts = () => apiFetch<Product[]>('/products')
-export const createProduct = (data: Omit<Product, 'id'> & { id?: string }) =>
-  apiFetch<Product>('/products', { method: 'POST', body: JSON.stringify(data) })
-export const updateProduct = (id: string, data: Partial<Product>) =>
-  apiFetch<Product>(`/products/${id}`, { method: 'PUT', body: JSON.stringify(data) })
-export const deleteProduct = (id: string) =>
-  apiFetch<{ deleted: string }>(`/products/${id}`, { method: 'DELETE' })
+
+// ─── Items (product identity + its inventory forms) ──────────────
+export type RawFormInput = { buy_price: number; stock?: number; reorder: number }
+export type FinishedFormInput = { unit: string; price: number; stock?: number; reorder: number; can_buy: boolean }
+export type ItemInput = { code?: string | null; name_am: string; name_en: string; active?: boolean; raw?: RawFormInput; finished?: FinishedFormInput }
+export const getItems = () => apiFetch<Item[]>('/items')
+export const createItem = (data: ItemInput) => apiFetch<Item>('/items', { method: 'POST', body: JSON.stringify(data) })
+export const updateItem = (id: string, data: Partial<ItemInput>) =>
+  apiFetch<Item>(`/items/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+
+// ─── Packaging conversions ───────────────────────────────────────
+export type PackagingInput = Pick<PackagingUnit, 'item_id' | 'unit_code' | 'base_per_unit' | 'label_am' | 'label_en' | 'price' | 'is_default'>
+export const getPackaging = () => apiFetch<PackagingUnit[]>('/packaging')
+export const createPackaging = (data: PackagingInput) =>
+  apiFetch<PackagingUnit>('/packaging', { method: 'POST', body: JSON.stringify(data) })
+export const updatePackaging = (id: number, data: Partial<Omit<PackagingInput, 'item_id' | 'unit_code'> & { active: boolean }>) =>
+  apiFetch<PackagingUnit>(`/packaging/${id}`, { method: 'PUT', body: JSON.stringify(data) })
 
 // ─── Customers ───────────────────────────────────────────────────
 export const getCustomers = () => apiFetch<Customer[]>('/customers')
-export const getCustomer = (id: string) => apiFetch<Customer>(`/customers/${id}`)
 export const createCustomer = (data: Omit<Customer, 'id' | 'balance_due'> & { id?: string }) =>
   apiFetch<Customer>('/customers', { method: 'POST', body: JSON.stringify(data) })
 export const updateCustomer = (id: string, data: Partial<Customer>) =>
@@ -95,7 +133,6 @@ export const deleteCustomer = (id: string) =>
 
 // ─── Suppliers ───────────────────────────────────────────────────
 export const getSuppliers = () => apiFetch<Supplier[]>('/suppliers')
-export const getSupplier = (id: string) => apiFetch<Supplier>(`/suppliers/${id}`)
 export const createSupplier = (data: Omit<Supplier, 'id' | 'balance_due'> & { id?: string }) =>
   apiFetch<Supplier>('/suppliers', { method: 'POST', body: JSON.stringify(data) })
 export const updateSupplier = (id: string, data: Partial<Supplier>) =>
@@ -105,10 +142,9 @@ export const deleteSupplier = (id: string) =>
 
 // ─── Sales ───────────────────────────────────────────────────────
 export const getSales = (params?: { customerId?: string; status?: string; from?: string; to?: string }) => {
-  const qs = new URLSearchParams(params as Record<string, string> ?? {}).toString()
+  const qs = new URLSearchParams({ limit: '1000', ...(params ?? {}) }).toString()
   return apiFetch<Sale[]>(`/sales${qs ? `?${qs}` : ''}`)
 }
-export const getSale = (id: string) => apiFetch<Sale>(`/sales/${id}`)
 export const createSale = (data: {
   date: string; customerId: string; items: SaleItem[]
   discount?: number; paid?: number; note?: string
@@ -116,7 +152,7 @@ export const createSale = (data: {
 
 // ─── Purchases ───────────────────────────────────────────────────
 export const getPurchases = (params?: { supplierId?: string; from?: string; to?: string }) => {
-  const qs = new URLSearchParams(params as Record<string, string> ?? {}).toString()
+  const qs = new URLSearchParams({ limit: '1000', ...(params ?? {}) }).toString()
   return apiFetch<Purchase[]>(`/purchases${qs ? `?${qs}` : ''}`)
 }
 export const createPurchase = (data: {
@@ -142,6 +178,76 @@ export const createExpense = (data: Omit<Expense, 'id'> & { id?: string }) =>
 // ─── Production ──────────────────────────────────────────────────
 export const getProductions = () => apiFetch<Production[]>('/production')
 export const createProduction = (data: {
-  date: string; rawProductId: string; rawQuantity: number
-  inputGrams: number; outputs: ProductionOutput[]; wasteGrams?: number; note?: string
+  date: string; rawProductId: string; rawKg: number
+  outputs: { productId: string; unitCode: string; quantity: number }[]; wasteKg?: number; note?: string
 }) => apiFetch<{ id: string }>('/production', { method: 'POST', body: JSON.stringify(data) })
+
+// ─── Detail views, editing and deleting ──────────────────────────
+/** A payment applied to one sale / purchase: `amount` is the part that went to it. */
+export type AppliedPayment = { id: string; date: string; amount: number; payment_amount: number; note: string }
+export type SaleDetail = Omit<Sale, 'items'> & {
+  items: (SaleItem & { productName: string; baseUnit: string })[]
+  payments: AppliedPayment[]
+}
+export type PurchaseDetail = Omit<Purchase, 'items'> & {
+  items: (PurchaseItem & { productName: string; unit: string; form: Product['form'] })[]
+  payments: AppliedPayment[]
+}
+export type PaymentDetail = Omit<Payment, 'allocations'> & {
+  person_name: string | null
+  allocations: (PaymentAllocation & { date: string | null })[]
+}
+type PersonTxn = { id: string; date: string; note: string; total: number; paid: number }
+export type CustomerDetail = Customer & {
+  sales: (PersonTxn & { discount: number; items: (SaleItem & { productName: string })[] })[]
+  payments: Payment[]
+}
+export type SupplierDetail = Supplier & {
+  purchases: (PersonTxn & { items: (PurchaseItem & { productName: string; unit: string })[] })[]
+  payments: Payment[]
+}
+export type Movement = {
+  id: number; product_id: string; form: Product['form']; delta: number; unit: string
+  reason: 'purchase' | 'sale' | 'production_in' | 'production_out' | 'adjustment'
+  ref_id: string | null; created_at: string; date: string | null; person_name: string | null
+}
+export type ItemDetail = Item & { stock: Product[]; packaging: PackagingUnit[]; movements: Movement[] }
+
+type SaleInput = Parameters<typeof createSale>[0]
+type PurchaseInput = Parameters<typeof createPurchase>[0]
+type PaymentInput = Parameters<typeof createPayment>[0]
+type ProductionInput = Parameters<typeof createProduction>[0]
+const put = (path: string, data: unknown) => apiFetch<{ id: string }>(path, { method: 'PUT', body: JSON.stringify(data) })
+const del = <T = { deleted: string }>(path: string) => apiFetch<T>(path, { method: 'DELETE' })
+
+export const getCustomerDetail = (id: string) => apiFetch<CustomerDetail>(`/customers/${id}`)
+export const getSupplierDetail = (id: string) => apiFetch<SupplierDetail>(`/suppliers/${id}`)
+
+export const getSaleDetail = (id: string) => apiFetch<SaleDetail>(`/sales/${id}`)
+export const updateSale = (id: string, data: SaleInput) => put(`/sales/${id}`, data)
+export const deleteSale = (id: string) => del<{ deleted: string; paymentsDeleted: number }>(`/sales/${id}`)
+
+export const getPurchaseDetail = (id: string) => apiFetch<PurchaseDetail>(`/purchases/${id}`)
+export const updatePurchase = (id: string, data: PurchaseInput) => put(`/purchases/${id}`, data)
+export const deletePurchase = (id: string) => del<{ deleted: string; paymentsDeleted: number }>(`/purchases/${id}`)
+
+export const getPaymentDetail = (id: string) => apiFetch<PaymentDetail>(`/payments/${id}`)
+export const updatePayment = (id: string, data: PaymentInput) => put(`/payments/${id}`, data)
+export const deletePayment = (id: string) => del(`/payments/${id}`)
+
+export const updateExpense = (id: string, data: Omit<Expense, 'id'>) => put(`/expenses/${id}`, data)
+export const deleteExpense = (id: string) => del(`/expenses/${id}`)
+
+export const getProductionDetail = (id: string) => apiFetch<Production>(`/production/${id}`)
+export const updateProduction = (id: string, data: ProductionInput) => put(`/production/${id}`, data)
+export const deleteProduction = (id: string) => del(`/production/${id}`)
+
+export const getItemDetail = (id: string) => apiFetch<ItemDetail>(`/items/${id}`)
+export const deleteItem = (id: string) => del(`/items/${id}`)
+export const deletePackaging = (id: number) => del<{ deleted: number }>(`/packaging/${id}`)
+
+// ─── Session ─────────────────────────────────────────────────────
+export const signOut = async () => {
+  await fetch('/api/auth', { method: 'DELETE' }).catch(() => {})
+  window.location.href = '/login'
+}
